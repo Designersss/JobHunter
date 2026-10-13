@@ -4,9 +4,11 @@ import { Telegram } from "./telegram.js";
 
 export async function runBot(db: Database, tg: Telegram, config: Config, signal: AbortSignal): Promise<void> {
   let offset = Number(await db.setting("telegram_offset") || "0");
+  let consecutiveErrors = 0;
   while (!signal.aborted) {
     try {
       const updates = await tg.updates(offset);
+      consecutiveErrors = 0;
       for (const update of updates) {
         offset = Math.max(offset, update.update_id + 1);
         const message = update.message;
@@ -43,8 +45,12 @@ export async function runBot(db: Database, tg: Telegram, config: Config, signal:
               case "/sources": {
                 const rows = await db.sourceStatuses();
                 response = rows.length ? rows.map(row =>
-                  row.source + ": " + row.last_status + " (" + row.last_attempt_at.toISOString() + ")"
-                ).join("\n") : "No providers checked yet.";
+                  row.source + ": " + row.last_status + " (" + row.last_attempt_at.toISOString() + ")" +
+                  (row.last_error ? "\n  Error: " + row.last_error : "") +
+                  (row.last_status === "ok" ? "\n  Fetched: " + row.fetched +
+                    ", fresh (72h): " + row.fresh + ", role matched: " + row.matched +
+                    ", new: " + row.new_jobs : "")
+                ).join("\n\n") : "No providers checked yet.";
                 break;
               }
               case "/pause":
@@ -68,8 +74,12 @@ export async function runBot(db: Database, tg: Telegram, config: Config, signal:
       }
     } catch (error) {
       if (signal.aborted) return;
-      console.error("Telegram polling failed", error);
-      await new Promise(resolve => setTimeout(resolve, 5_000));
+      consecutiveErrors++;
+      const delay = Math.min(30_000, 2_000 * 2 ** Math.min(consecutiveErrors - 1, 4));
+      // getUpdates is a read: retrying is safe and does not repost vacancies.
+      console.warn("Telegram polling temporarily unavailable", error instanceof Error ? error.message : String(error),
+        "retry in", delay / 1000, "seconds");
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
 }

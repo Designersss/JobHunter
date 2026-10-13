@@ -6,12 +6,13 @@ TypeScript service for a **private Telegram job feed**. Finds newly published re
 
 ## What works today
 
-- Remotive API (polled at most every 6 hours, with explicit Remotive attribution and original link).
+- Remotive API (polled at most every 6 hours, with explicit Remotive attribution and original link). HTTP 403/429 is treated as upstream access denial and retried no sooner than 24 hours later; we don't circumvent provider restrictions.
 - We Work Remotely public programming RSS (polled every 15 minutes).
+- Jobicy public engineering jobs API (polled no more than once per hour, cursor pagination, original Jobicy URL and attribution).
 - Exact 72-hour publication window, including expiration of jobs that grow stale while waiting in the queue, title-based tech-role matching, exclusion of junior/internship titles.
 - PostgreSQL uniqueness on canonicalized source URL **and** source vacancy ID. After a successful post, it will not be reposted after restart.
 - Atomic queue claiming for concurrent workers, with conservative uncertain state on interrupted/ambiguous Telegram delivery. Uncertain posts are **not automatically resent**.
-- Telegram commands: /start, /help, /stats, /recent, /sources, /pause, /resume. Only the owner ID is allowed.
+- Telegram commands: /start, /help, /stats, /recent, /sources, /pause, /resume. The /sources command also shows how many jobs passed the 72-hour and title filters. Only the owner ID is allowed.
 - No automatic replies, interviews or invitation tracking.
 
 Cross-source deduplication is exact-URL based in this phase, not fuzzy company/title matching. Third-party aggregators often use different URLs for the same job; this will be addressed in a separate phase.
@@ -84,6 +85,9 @@ routine troubleshooting step**: it deletes the PostgreSQL volume and its history
 - The worker never uses captchas, impersonation, unauthorized site automation, or private employer APIs.
 - External publishers' feeds may be delayed; the 72-hour window is measured using each vacancy's supplied publication time.
 - Public sites might change their feed shape. Failed source pulls are logged and visible using /sources.
+- A response such as "Fetched wwr 25 saved 0" may mean 0 of the 25 listings matched the strict time window and job title filter, not a broken RSS parser. Check `/sources` for fetched/fresh/matched/new counts.
+- A Telegram `getUpdates` connect timeout is a connectivity issue, not an OAuth or permission failure. Polling retries with capped exponential backoff; on persistent timeouts check `https://api.telegram.org` reachability from the same host and whether VPN/proxy/firewall rules apply. Never paste the bot token into diagnostics.
+- Source errors do not suppress other sources, and bot polling errors don't stop scheduled job scans.
 - Publishing all backlog immediately would flood the channel, so MAX_TELEGRAM_POSTS_PER_CYCLE defaults to 25.
 
 ## Roadmap

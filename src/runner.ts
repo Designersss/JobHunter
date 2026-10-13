@@ -20,13 +20,25 @@ export class Runner {
         if (!await this.db.sourceDue(source.name, source.cooldownMs)) continue;
         try {
           const jobs = await source.fetchJobs();
+          let fresh = 0;
+          let matched = 0;
           let saved = 0;
           for (const job of jobs) {
-            if (!isFresh(job) || !isRelevant(job)) continue;
+            if (!isFresh(job)) continue;
+            fresh++;
+            if (!isRelevant(job)) continue;
+            matched++;
             if (await this.db.saveJob(job)) saved++;
           }
-          await this.db.sourceAttempt(source.name);
-          console.info("Fetched", source.name, jobs.length, "saved", saved);
+          await this.db.sourceAttempt(source.name, undefined, {
+            fetched: jobs.length, fresh, matched, saved
+          });
+          console.info("Source", source.name, {
+            fetched: jobs.length, fresh, matched, new: saved,
+            excludedByDate: jobs.length - fresh,
+            excludedByRole: fresh - matched,
+            duplicates: matched - saved
+          });
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           await this.db.sourceAttempt(source.name, message);

@@ -26,7 +26,16 @@ export class Database {
     await this.pool.query(
       "CREATE TABLE IF NOT EXISTS source_runs (" +
       "source TEXT PRIMARY KEY, last_attempt_at TIMESTAMPTZ NOT NULL, " +
-      "last_success_at TIMESTAMPTZ, last_status TEXT NOT NULL, last_error TEXT)"
+      "last_success_at TIMESTAMPTZ, last_status TEXT NOT NULL, last_error TEXT, " +
+      "fetched INTEGER NOT NULL DEFAULT 0, fresh INTEGER NOT NULL DEFAULT 0, " +
+      "matched INTEGER NOT NULL DEFAULT 0, new_jobs INTEGER NOT NULL DEFAULT 0)"
+    );
+    // Safe, repeatable migration for databases created by earlier JobHunter versions.
+    await this.pool.query(
+      "ALTER TABLE source_runs ADD COLUMN IF NOT EXISTS fetched INTEGER NOT NULL DEFAULT 0, " +
+      "ADD COLUMN IF NOT EXISTS fresh INTEGER NOT NULL DEFAULT 0, " +
+      "ADD COLUMN IF NOT EXISTS matched INTEGER NOT NULL DEFAULT 0, " +
+      "ADD COLUMN IF NOT EXISTS new_jobs INTEGER NOT NULL DEFAULT 0"
     );
     await this.pool.query(
       "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
@@ -57,22 +66,31 @@ export class Database {
   }
 
   async sourceDue(source: string, cooldownMs: number): Promise<boolean> {
-    const result = await this.pool.query<{ last_attempt_at: Date }>(
-      "SELECT last_attempt_at FROM source_runs WHERE source=$1", [source]
+    const result = await this.pool.query<{ last_attempt_at: Date; last_error: string | null }>(
+      "SELECT last_attempt_at,last_error FROM source_runs WHERE source=$1", [source]
     );
-    const last = result.rows[0]?.last_attempt_at;
-    return !last || Date.now() - last.getTime() >= cooldownMs;
+    const row = result.rows[0];
+    if (!row) return true;
+    // Respect upstream access denials / rate limiting instead of repeatedly hammering.
+    const denied = /HTTP (403|429)(?:\b|$)/.test(row.last_error ?? "");
+    const delay = denied ? Math.max(cooldownMs, 24 * 60 * 60 * 1000) : cooldownMs;
+    return Date.now() - row.last_attempt_at.getTime() >= delay;
   }
 
-  async sourceAttempt(source: string, error?: string): Promise<void> {
+  async sourceAttempt(source: string, error?: string, stats?: {
+    fetched: number; fresh: number; matched: number; saved: number
+  }): Promise<void> {
     await this.pool.query(
-      "INSERT INTO source_runs(source,last_attempt_at,last_success_at,last_status,last_error) " +
-      "VALUES ($1,now(),CASE WHEN $2::text IS NULL THEN now() ELSE NULL END, " +
-      "CASE WHEN $2::text IS NULL THEN 'ok' ELSE 'error' END,$2) " +
+      "INSERT INTO source_runs(source,last_attempt_at,last_success_at,last_status,last_error," +
+      "fetched,fresh,matched,new_jobs) VALUES " +
+      "($1,now(),CASE WHEN $2::text IS NULL THEN now() ELSE NULL END, " +
+      "CASE WHEN $2::text IS NULL THEN 'ok' ELSE 'error' END,$2,$3,$4,$5,$6) " +
       "ON CONFLICT(source) DO UPDATE SET " +
       "last_attempt_at=now(),last_success_at=CASE WHEN EXCLUDED.last_status='ok' THEN now() " +
-      "ELSE source_runs.last_success_at END,last_status=EXCLUDED.last_status,last_error=EXCLUDED.last_error",
-      [source, error ?? null]
+      "ELSE source_runs.last_success_at END,last_status=EXCLUDED.last_status,last_error=EXCLUDED.last_error, " +
+      "fetched=EXCLUDED.fetched,fresh=EXCLUDED.fresh,matched=EXCLUDED.matched,new_jobs=EXCLUDED.new_jobs",
+      [source, error ?? null, stats?.fetched ?? 0,
+        stats?.fresh ?? 0, stats?.matched ?? 0, stats?.saved ?? 0]
     );
   }
 
@@ -155,9 +173,16 @@ export class Database {
     return result.rows;
   }
 
-  async sourceStatuses(): Promise<Array<{ source: string; last_status: string; last_attempt_at: Date }>> {
-    const result = await this.pool.query<{ source: string; last_status: string; last_attempt_at: Date }>(
-      "SELECT source,last_status,last_attempt_at FROM source_runs ORDER BY source"
+  async sourceStatuses(): Promise<Array<{
+    source: string; last_status: string; last_attempt_at: Date; last_error: string | null;
+    fetched: number; fresh: number; matched: number; new_jobs: number
+  }>> {
+    const result = await this.pool.query<{
+      source: string; last_status: string; last_attempt_at: Date; last_error: string | null;
+      fetched: number; fresh: number; matched: number; new_jobs: number
+    }>(
+      "SELECT source,last_status,last_attempt_at,last_error,fetched,fresh,matched,new_jobs " +
+      "FROM source_runs ORDER BY source"
     );
     return result.rows;
   }

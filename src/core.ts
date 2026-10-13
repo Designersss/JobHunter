@@ -1,4 +1,4 @@
-export type SourceName = "remotive" | "wwr";
+export type SourceName = "remotive" | "wwr" | "jobicy";
 
 export interface Job {
   source: SourceName;

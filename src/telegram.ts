@@ -50,7 +50,7 @@ export class Telegram {
 
   async updates(offset: number): Promise<TgUpdate[]> {
     return this.call<TgUpdate[]>("getUpdates", {
-      offset, timeout: 20, allowed_updates: ["message"], limit: 50
+      offset, timeout: 10, allowed_updates: ["message"], limit: 50
     });
   }
 }
