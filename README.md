@@ -21,18 +21,24 @@ Cross-source deduplication is exact-URL based in this phase, not fuzzy company/t
 Prerequisites: Node.js 22+, Docker (for local PostgreSQL), a private Telegram channel, and a Telegram bot created via @BotFather.
 
 1. Add the bot as an administrator **with permission to post** to the private channel.
-2. Start a private conversation with the bot, send /start, and determine your numeric Telegram user ID plus the channel's -100... ID.
-3. Copy .env.example to .env and fill TELEGRAM_BOT_TOKEN, TELEGRAM_OWNER_ID, TELEGRAM_CHANNEL_ID. **Never commit .env.**
-4. Start the database with: docker compose up -d
-5. Install dependencies: npm install
-6. Verify: npm run typecheck && npm test && npm run build
-7. Run: npm run dev (development) or npm start after build.
+2. Install dependencies: `npm install`, and copy `.env.example` to `.env`.
+3. Add **only** `TELEGRAM_BOT_TOKEN` to your local `.env` (get it from BotFather). Never share it in chat or commit it to Git.
+4. Run `npm run telegram:discover` **before** starting JobHunter. Send `/start` to the bot in a private chat, and publish a new short test post in your private Telegram channel. Run `npm run telegram:discover` again. It will print the numeric private user ID and channel ID, without printing message text. If no IDs appear, repeat the messages **after** the initial discover command. This command must not run simultaneously with another bot poller.
+5. Add the two discovered values to `TELEGRAM_OWNER_ID` and `TELEGRAM_CHANNEL_ID` in your local `.env`.
+6. Run `npm run telegram:check` to verify the bot is a channel administrator with publish permission. Run `npm run telegram:check -- --send-test` for an explicitly requested test publication. A normal check is read-only.
+7. Start PostgreSQL with `docker compose up -d`.
+8. Verify: `npm run typecheck && npm test && npm run build`.
+9. Start the job feed: `npm run dev` (development) or `npm start` after building. Telegram commands work in a **private chat** with your bot.
 
 The first scan runs at process startup; later scans use POLL_INTERVAL_MINUTES (default 15). Remotive is intentionally fetched no more than four times a day per deployment. On startup, any prior job left in a sending state is marked uncertain to avoid duplicate posting after an ambiguous network failure.
 
 Commands are available in the private chat with your bot, not in the channel. The bot will **not** send unsolicited status or employer-response notifications.
 
 ## Operating notes
+
+- The setup helper uses Telegram's `getUpdates`; this only works without a webhook or competing long-polling process. It reads metadata from recent updates and does not confirm those updates.
+- The test publication is optional and happens only with `--send-test`. The bot will never print your BotFather token.
+
 
 - Grant the bot access only to a private channel and restrict command handling to your own numeric Telegram user ID.
 - In this phase you cannot automatically reconcile Telegram messages marked uncertain. Inspect the channel and database before deciding whether to reset a record.
