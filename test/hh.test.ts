@@ -56,8 +56,8 @@ test("HH discovery splits a large result window and does not silently truncate",
   const get: GetJson = async <T>(_path: string, params?: URLSearchParams): Promise<T> => {
     const from = Date.parse(params!.get("date_from")!.replace("+0000", "Z"));
     const to = Date.parse(params!.get("date_to")!.replace("+0000", "Z"));
-    return { found: to - from > 3_600_000 ? 2500 : 0,
-      pages: to - from > 3_600_000 ? 20 : 0, items: [] } as T;
+    return { found: to - from > 36 * 3_600_000 ? 2500 : 0,
+      pages: to - from > 36 * 3_600_000 ? 20 : 0, items: [] } as T;
   };
   const result = await searchHh(get, { now, maxRequests: 200 });
   assert.ok(result.windows > 2);
