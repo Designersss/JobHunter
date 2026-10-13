@@ -37,38 +37,38 @@ Commands are available in the private chat with your bot, not in the channel. Th
 
 ### PostgreSQL port and authentication troubleshooting (macOS)
 
-By default PostgreSQL listens inside the Docker container on \`5432\`, but JobHunter
-publishes it on the **host port \`5433\`**, bound to \`127.0.0.1\`. This avoids
+By default PostgreSQL listens inside the Docker container on `5432`, but JobHunter
+publishes it on the **host port `5433`**, bound to `127.0.0.1`. This avoids
 clashing with another PostgreSQL instance on your Mac.
 
-In your **existing local** \`.env\` file, set:
+In your **existing local** `.env` file, set:
 
-\`\`\`dotenv
+```dotenv
 DATABASE_URL=postgresql://jobhunter:jobhunter@127.0.0.1:5433/jobhunter
-\`\`\`
+```
 
-Updating \`.env.example\` does **not** update an existing \`.env\` automatically.
+Updating `.env.example` does **not** update an existing `.env` automatically.
 From the repository root, run:
 
-\`\`\`bash
+```bash
 docker compose up -d --force-recreate postgres
 docker compose ps
 docker compose port postgres 5432
 docker compose exec -T -e PGPASSWORD=jobhunter postgres \
   psql -h 127.0.0.1 -U jobhunter -d jobhunter -c 'SELECT current_user, current_database();'
 npm run dev
-\`\`\`
+```
 
-If your host port \`5433\` is also busy, use an unused port (for example
-\`5434\`) by setting \`POSTGRES_HOST_PORT=5434\` in \`.env\`, and also change
-the port in \`DATABASE_URL\` to \`5434\`. Note: Docker Compose reads environment
-variables from \`.env\` for interpolation.
+If your host port `5433` is also busy, use an unused port (for example
+`5434`) by setting `POSTGRES_HOST_PORT=5434` in `.env`, and also change
+the port in `DATABASE_URL` to `5434`. Note: Docker Compose reads environment
+variables from `.env` for interpolation.
 
-If the \`psql\` check fails with a password error **inside the container**,
+If the `psql` check fails with a password error **inside the container**,
 the database volume may have been initialized previously with different
-credentials: Docker's \`POSTGRES_PASSWORD\` does not reset an existing database
+credentials: Docker's `POSTGRES_PASSWORD` does not reset an existing database
 password. Investigate and fix the actual credentials or restore access to that
-database before changing settings. **Never run \`docker compose down -v\` as a
+database before changing settings. **Never run `docker compose down -v` as a
 routine troubleshooting step**: it deletes the PostgreSQL volume and its history.
 
 ## Operating notes
