@@ -55,7 +55,11 @@ export class Database {
       "has_test BOOLEAN, already_applied BOOLEAN NOT NULL DEFAULT false, " +
       "discovered_at TIMESTAMPTZ NOT NULL DEFAULT now(), last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now())"
     );
-    // A crashed sender may have posted successfully. Never blindly resend it.
+  }
+
+  // Only the publisher worker may recover an interrupted send. Read-only
+  // CLI tooling must never modify jobs currently being sent by a live worker.
+  async recoverInterruptedSends(): Promise<void> {
     await this.pool.query(
       "UPDATE jobs SET status='uncertain', last_error='Interrupted while sending; manual review needed', " +
       "updated_at=now() WHERE status='sending'"
