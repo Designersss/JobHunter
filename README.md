@@ -8,7 +8,7 @@ TypeScript service for a **private Telegram job feed**. Finds newly published re
 
 - Remotive API (polled at most every 6 hours, with explicit Remotive attribution and original link).
 - We Work Remotely public programming RSS (polled every 15 minutes).
-- Exact 72-hour publication window, title-based tech-role matching, exclusion of junior/internship titles.
+- Exact 72-hour publication window, including expiration of jobs that grow stale while waiting in the queue, title-based tech-role matching, exclusion of junior/internship titles.
 - PostgreSQL uniqueness on canonicalized source URL **and** source vacancy ID. After a successful post, it will not be reposted after restart.
 - Atomic queue claiming for concurrent workers, with conservative uncertain state on interrupted/ambiguous Telegram delivery. Uncertain posts are **not automatically resent**.
 - Telegram commands: /start, /help, /stats, /recent, /sources, /pause, /resume. Only the owner ID is allowed.

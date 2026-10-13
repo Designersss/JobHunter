@@ -33,6 +33,8 @@ export class Runner {
           console.error("Source failed:", source.name, message);
         }
       }
+      // Some jobs can become older than 72h while waiting in the backlog.
+      await this.db.expireQueued();
       for (let sent = 0; sent < this.maxPostsPerCycle; sent++) {
         if (await this.db.paused()) break;
         const job = await this.db.claimNext();

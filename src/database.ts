@@ -16,7 +16,7 @@ export class Database {
       "dedupe_key TEXT NOT NULL UNIQUE, title TEXT NOT NULL, company TEXT NOT NULL, " +
       "url TEXT NOT NULL, published_at TIMESTAMPTZ NOT NULL, " +
       "description TEXT NOT NULL, location TEXT NOT NULL, discovered_at TIMESTAMPTZ NOT NULL DEFAULT now(), " +
-      "status TEXT NOT NULL DEFAULT 'queued' CHECK(status IN ('queued','sending','sent','uncertain')), " +
+      "status TEXT NOT NULL DEFAULT 'queued' CHECK(status IN ('queued','sending','sent','uncertain','expired')), " +
       "telegram_message_id BIGINT, last_error TEXT, " +
       "updated_at TIMESTAMPTZ NOT NULL DEFAULT now(), UNIQUE(source, external_id))"
     );
@@ -76,9 +76,18 @@ export class Database {
     );
   }
 
+  async expireQueued(): Promise<void> {
+    await this.pool.query(
+      "UPDATE jobs SET status='expired',updated_at=now() " +
+      "WHERE status='queued' AND published_at < now() - interval '72 hours'"
+    );
+  }
+
   async claimNext(): Promise<StoredJob | null> {
     const result = await this.pool.query(
       "WITH next_job AS (SELECT id FROM jobs WHERE status='queued' " +
+      "AND published_at >= now() - interval '72 hours' " +
+      "AND published_at <= now() + interval '5 minutes' " +
       "ORDER BY published_at DESC,id FOR UPDATE SKIP LOCKED LIMIT 1) " +
       "UPDATE jobs SET status='sending',updated_at=now() WHERE id=(SELECT id FROM next_job) " +
       "RETURNING id::text,source,external_id,title,company,url,published_at,description,location,status"
@@ -127,13 +136,14 @@ export class Database {
     return (await this.setting("paused")) === "true";
   }
 
-  async statistics(): Promise<{ total: number; sent: number; queued: number; uncertain: number }> {
+  async statistics(): Promise<{ total: number; sent: number; queued: number; uncertain: number; expired: number }> {
     const result = await this.pool.query(
       "SELECT COUNT(*)::int AS total, COUNT(*) FILTER(WHERE status='sent')::int AS sent, " +
       "COUNT(*) FILTER(WHERE status='queued')::int AS queued, " +
-      "COUNT(*) FILTER(WHERE status='uncertain')::int AS uncertain FROM jobs"
+      "COUNT(*) FILTER(WHERE status='uncertain')::int AS uncertain, " +
+      "COUNT(*) FILTER(WHERE status='expired')::int AS expired FROM jobs"
     );
-    const row = result.rows[0] as { total: number; sent: number; queued: number; uncertain: number };
+    const row = result.rows[0] as { total: number; sent: number; queued: number; uncertain: number; expired: number };
     return row;
   }
 

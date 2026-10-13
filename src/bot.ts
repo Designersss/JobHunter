@@ -29,7 +29,8 @@ export async function runBot(db: Database, tg: Telegram, config: Config, signal:
                 const paused = await db.paused();
                 response = "JobHunter (" + (paused ? "paused" : "running") + ")\n" +
                   "Unique jobs: " + s.total + "\nPosted: " + s.sent + "\n" +
-                  "Queued: " + s.queued + "\nNeeds review: " + s.uncertain;
+                  "Queued: " + s.queued + "\nExpired: " + s.expired +
+                  "\nNeeds review: " + s.uncertain;
                 break;
               }
               case "/recent": {
