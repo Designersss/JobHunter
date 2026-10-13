@@ -1,5 +1,6 @@
 import pg from "pg";
 import { canonicalUrl, Job, StoredJob } from "./core.js";
+import type { HhVacancy } from "./hh/discovery.js";
 
 const { Pool } = pg;
 
@@ -46,6 +47,13 @@ export class Database {
       "resume_id TEXT, status TEXT NOT NULL, " +
       "last_error TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), " +
       "updated_at TIMESTAMPTZ NOT NULL DEFAULT now())"
+    );
+    await this.pool.query(
+      "CREATE TABLE IF NOT EXISTS hh_vacancies (" +
+      "vacancy_id TEXT PRIMARY KEY, title TEXT NOT NULL, company TEXT NOT NULL, " +
+      "url TEXT NOT NULL, published_at TIMESTAMPTZ NOT NULL, " +
+      "has_test BOOLEAN, already_applied BOOLEAN NOT NULL DEFAULT false, " +
+      "discovered_at TIMESTAMPTZ NOT NULL DEFAULT now(), last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now())"
     );
     // A crashed sender may have posted successfully. Never blindly resend it.
     await this.pool.query(
@@ -185,6 +193,24 @@ export class Database {
       "FROM source_runs ORDER BY source"
     );
     return result.rows;
+  }
+
+  async saveHhVacancies(vacancies: HhVacancy[]): Promise<number> {
+    let inserted = 0;
+    for (const row of vacancies) {
+      const link = row.alternate_url || "https://hh.ru/vacancy/" + encodeURIComponent(row.id);
+      const result = await this.pool.query(
+        "INSERT INTO hh_vacancies(vacancy_id,title,company,url,published_at,has_test,already_applied) " +
+        "VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(vacancy_id) DO UPDATE SET " +
+        "title=EXCLUDED.title,company=EXCLUDED.company,url=EXCLUDED.url," +
+        "published_at=EXCLUDED.published_at,has_test=EXCLUDED.has_test," +
+        "already_applied=EXCLUDED.already_applied,last_seen_at=now() RETURNING (xmax = 0) AS inserted",
+        [row.id, row.name, row.employer?.name || "Unknown", link,
+          row.published_at, row.has_test ?? null, row.relations?.includes("got_response") || false]
+      );
+      if (result.rows[0]?.inserted === true) inserted++;
+    }
+    return inserted;
   }
 
   async close(): Promise<void> {

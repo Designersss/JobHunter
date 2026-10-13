@@ -90,6 +90,10 @@ routine troubleshooting step**: it deletes the PostgreSQL volume and its history
 - Source errors do not suppress other sources, and bot polling errors don't stop scheduled job scans.
 - Publishing all backlog immediately would flood the channel, so MAX_TELEGRAM_POSTS_PER_CYCLE defaults to 25.
 
+## hh.ru applicant discovery (HH-01)
+
+For read-only hh.ru OAuth authorization, resume listing and the 72-hour vacancy scan, see [docs/hh.md](docs/hh.md). Real automatic applications are **not yet implemented**.
+
 ## Roadmap
 
 1. Foundation (this PR): Telegram channel, Remotive + WWR, PostgreSQL, dedupe, tests/CI.

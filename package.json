@@ -13,7 +13,10 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "tsx --test test/*.test.ts",
     "telegram:discover": "tsx src/telegram-cli.ts discover",
-    "telegram:check": "tsx src/telegram-cli.ts check"
+    "telegram:check": "tsx src/telegram-cli.ts check",
+    "hh:auth": "tsx src/hh/cli.ts auth",
+    "hh:resumes": "tsx src/hh/cli.ts resumes",
+    "hh:scan": "tsx src/hh/cli.ts scan"
   },
   "dependencies": {
     "dotenv": "^16.6.1",
