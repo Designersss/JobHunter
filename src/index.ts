@@ -9,6 +9,7 @@ async function main(): Promise<void> {
   const config = loadConfig();
   const db = new Database(config.databaseUrl);
   await db.init();
+  await db.recoverInterruptedSends();
   const tg = new Telegram(config);
   const runner = new Runner(db, tg, SOURCES, config.maxPostsPerCycle);
   const abort = new AbortController();
